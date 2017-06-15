@@ -9,6 +9,9 @@ from server import app
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
+class AccessDenied(Exception):
+    pass
+
 class TaskKind(enum.Enum):
     FEATURE = 1
     BUG = 2
@@ -45,10 +48,6 @@ class User(db.Model):
     email = db.Column(db.String, nullable=False)
     avatar = db.Column(db.String)
 
-    @classmethod
-    def load(cls, username):
-        return cls.query.filter_by(username=username).first()
-
     def hash_password(self, password):
         self.password_hash = pbkdf2_sha256.hash(password)
 
@@ -64,11 +63,16 @@ class Project(db.Model):
     tasks = db.relationship('Task', back_populates='project')
     sprints = db.relationship('Sprint', back_populates='project')
 
-    name = db.Column(db.String)
+    alias = db.Column(db.String, index=True, unique=True, nullable=False)
+    name = db.Column(db.String, nullable=False)
     description = db.Column(db.Text)
     vcs_link = db.Column(db.String)
     bt_link = db.Column(db.String)
     ci_link = db.Column(db.String)
+
+    def authorize(self, user_id):
+        if not self.members.contains(user_id):
+            raise AccessDenied()
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -101,6 +105,9 @@ class Task(db.Model):
     acceptance_criteria = db.Column(db.Text)
     bt_ticket = db.Column(db.String)
 
+    def authorize(self, user_id):
+        self.project.authorize(user_id)
+
 class Sprint(db.Model):
     __tablename__ = 'sprints'
     id = db.Column(db.Integer, primary_key=True)
@@ -117,6 +124,9 @@ class Sprint(db.Model):
     def is_completed(self):
         pass
 
+    def authorize(self, user_id):
+        self.project.authorize(user_id)
+
 class Comment(db.Model):
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
@@ -127,3 +137,6 @@ class Comment(db.Model):
     author = db.relationship('User')
     added_at = db.Column(db.DateTime)
     message = db.Text()
+
+    def authorize(self, user_id):
+        self.task.authorize(user_id)
