@@ -45,6 +45,10 @@ class User(db.Model):
     email = db.Column(db.String, nullable=False)
     avatar = db.Column(db.String)
 
+    @classmethod
+    def load(cls, username):
+        return cls.query.filter_by(username=username).first()
+
     def hash_password(self, password):
         self.password_hash = pbkdf2_sha256.hash(password)
 
@@ -78,7 +82,7 @@ class Task(db.Model):
     parent_task = db.relationship('Task')
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     author = db.relationship('User')
-    comments = db.relationship('Comment', back_populates='project')
+    comments = db.relationship('Comment', back_populates='task')
     responsible = db.relationship('User', secondary=task_assigments)
 
     order = db.Column(db.Integer, nullable=False)
