@@ -74,12 +74,6 @@ class Project(db.Model):
     bts_link = db.Column(db.String)
     cis_link = db.Column(db.String)
 
-    def authorize(self, user_id):
-        if not db.session.query(project_members)\
-                         .filter_by(project_id=self.id, user_id=user_id)\
-                         .first():
-            raise AccessDenied()
-
 class Sprint(db.Model):
     __tablename__ = 'sprints'
     id = db.Column(db.Integer, primary_key=True)
@@ -91,12 +85,6 @@ class Sprint(db.Model):
     start_date = db.Column(db.Date, nullable=False)
     end_date = db.Column(db.Date, nullable=False)
     goal = db.Column(db.Text)
-
-    def is_completed(self):
-        pass
-
-    def authorize(self, user_id):
-        self.project.authorize(user_id)
 
 class Task(db.Model):
     __tablename__ = 'tasks'
@@ -127,9 +115,6 @@ class Task(db.Model):
     time_spent = db.Column(db.Integer)
     effort = db.Column(db.Float)
 
-    def authorize(self, user_id):
-        self.project.authorize(user_id)
-
 class Comment(db.Model):
     __tablename__ = 'comments'
     id = db.Column(db.Integer, primary_key=True)
@@ -140,7 +125,4 @@ class Comment(db.Model):
     author = db.relationship('User')
 
     creation_date = db.Column(db.DateTime)
-    message = db.Text()
-
-    def authorize(self, user_id):
-        self.task.authorize(user_id)
+    message = db.Column(db.Text())

@@ -1,57 +1,19 @@
 from datetime import datetime
 
-from flask import jsonify, request
 from flask_jwt_extended import (JWTManager, jwt_required,
                                 create_access_token, get_jwt_identity)
 from flask_restful import Api, Resource, reqparse
 
-from server import app, models
+from server import app, models, repositories
 
 api = Api(app, prefix='/v1')
 jwt = JWTManager(app)
 
-class NotFound(Exception):
-    pass
-
-@app.errorhandler(NotFound)
-def handle_not_found(error):
-    response = jsonify({'message': 'Not found'})
-    response.status_code = 404
-    return response
-
-@app.errorhandler(models.AccessDenied)
-def handle_access_denied(error):
-    response = jsonify({'message': 'Access denied'})
-    response.status_code = 403
-    return response
-
-def load_project(project_alias):
-    project = models.Project.query.filter_by(alias=project_alias).first()
-    if not project:
-        raise NotFound()
-    project.authorize(get_jwt_identity())
-    return project
-
-def load_task(task_id):
-    task = models.Task.query.get(task_id)
-    if not task:
-        raise NotFound()
-    task.authorize(get_jwt_identity())
-    return task
-
-def load_sprint(sprint_id):
-    sprint = models.Sprint.query.get(sprint_id)
-    if not sprint:
-        raise NotFound()
-    sprint.authorize(get_jwt_identity())
-    return sprint
-
-def load_comment(comment_id):
-    comment = models.Comment.query.get(comment_id)
-    if not comment:
-        raise NotFound()
-    comment.authorize(get_jwt_identity())
-    return comment
+user_repo = repositories.User()
+project_repo = repositories.Project()
+sprint_repo = repositories.Sprint()
+task_repo = repositories.Task()
+comment_repo = repositories.Comment()
 
 class Login(Resource):
     def post(self):
@@ -59,10 +21,10 @@ class Login(Resource):
         parser.add_argument('username', type=str, required=True)
         parser.add_argument('password', type=str, required=True)
         args = parser.parse_args()
-        user = models.User.query.filter_by(username=args.username).first()
+        user = models.User.query.filter_by(username=args['username']).first()
         if not user:
             return {'msg': 'No such user'}, 401
-        if not user.verify_password(args.password):
+        if not user.verify_password(args['password']):
             return {'msg': 'Invalid password'}, 401
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}
@@ -71,78 +33,60 @@ class User(Resource):
     @jwt_required
     def get(self):
         user = models.User.query.get(get_jwt_identity())
-        return {
-            'username': user.username,
-            'full_name': user.full_name,
-            'email': user.email
-        }
+        return user_repo.dump(user)
 
     @jwt_required
     def post(self):
-        full_name = request.json.get('full_name', None)
-        email = request.json.get('email', None)
+        parser = reqparse.RequestParser()
+        parser.add_argument('full_name', type=str)
+        parser.add_argument('email', type=str)
+        args = parser.parse_args()
+
         user = models.User.query.get(get_jwt_identity())
-        user.full_name = full_name
-        user.email = email
+        user_repo.load(user, args)
+
         models.db.session.add(user)
         models.db.session.commit()
+
         return {'ok': True}
 
 class UserProjects(Resource):
     @jwt_required
     def get(self):
         user = models.User.query.get(get_jwt_identity())
-        projects = []
-        for project in user.projects:
-            projects.append({
-                'alias': project.alias,
-                'name': project.name
-            })
-        return {'projects': projects}
+        return {'projects': [project_repo.dump_short(x) for x in user.projects]}
 
 class Project(Resource):
     @jwt_required
     def get(self, project_alias):
-        project = load_project(project_alias)
-        return {
-            'alias': project.alias,
-            'name': project.name,
-            'description': project.description,
-            'vcs_link': project.vcs_link,
-            'bts_link': project.bts_link,
-            'cis_link': project.cis_link
-        }
+        project = project_repo.open(project_alias)
+        return project_repo.dump_full(project)
 
 class ProjectMembers(Resource):
     @jwt_required
     def get(self, project_alias):
-        project = load_project(project_alias)
-        members = []
-        for member in project.members:
-            members.append({
-                'username': member.username,
-                'full_name': member.full_name,
-                'email': member.email
-            })
-        return {'members': members}
+        project = project_repo.open(project_alias)
+        return {'members': [user_repo.dump(x) for x in project.members]}
 
 class ProjectSprints(Resource):
     @jwt_required
     def get(self, project_alias):
-        project = load_project(project_alias)
+        project = project_repo.open(project_alias)
+        return {'sprints': [sprint_repo.dump(x) for x in project.sprints]}
 
     @jwt_required
     def post(self, project_alias):
-        project = load_project(project_alias)
+        project = project_repo.open(project_alias)
 
 class ProjectTasks(Resource):
     @jwt_required
     def get(self, project_alias):
-        project = load_project(project_alias)
+        project = project_repo.open(project_alias)
+        return {'tasks': [task_repo.dump_short(x) for x in project.tasks]}
 
     @jwt_required
     def post(self, project_alias):
-        project = load_project(project_alias)
+        project = project_repo.open(project_alias)
 
         parser = reqparse.RequestParser()
         parser.add_argument('sprint_id', type=int)
@@ -157,20 +101,10 @@ class ProjectTasks(Resource):
         args = parser.parse_args()
 
         task = models.Task()
-        task.project_id = project.id
-        task.sprint_id = args.sprint_id
-        task.parent_task_id = args.parent_task_id
-        task.author_id = get_jwt_identity()
-        task.title = args.title
-        task.creation_date = datetime.utcnow()
-        task.kind = args.kind
-        task.priority = args.priority
-        task.acceptance_criteria = args.acceptance_criteria
-        task.user_story = args.user_story
-        task.initial_estimate = args.initial_estimate
+        task.project = project
+        task_repo.load(task, args)
         for assignee_username in args.assignees:
-            assignee = User.query.filter_by(username=assignee_username).first()
-            task.assignees.append(assignee.id)
+            task.assignees.append(user_repo.open(assignee_username))
 
         models.db.session.add(task)
         models.db.session.commit()
@@ -178,55 +112,62 @@ class ProjectTasks(Resource):
 class Sprint(Resource):
     @jwt_required
     def get(self, sprint_id):
-        sprint = load_sprint(sprint_id)
+        sprint = sprint_repo.open(sprint_id)
+        return sprint_repo.dump(sprint)
 
     @jwt_required
     def put(self, sprint_id):
-        sprint = load_sprint(sprint_id)
+        sprint = sprint_repo.open(sprint_id)
 
     @jwt_required
     def delete(self, sprint_id):
-        sprint = load_sprint(sprint_id)
+        sprint = sprint_repo.open(sprint_id)
 
 class SprintTasks(Resource):
     @jwt_required
     def get(self, sprint_id):
-        sprint = load_sprint(sprint_id)
+        sprint = sprint_repo.open(sprint_id)
+        return {'tasks': [task_repo.dump_short(x) for x in sprint.tasks]}
 
 class Task(Resource):
     @jwt_required
     def get(self, task_id):
-        task = load_task(task_id)
+        task = task_repo.open(task_id)
+        d = task_repo.dump_full(task)
+        d['assignees'] = [user_repo.dump(x) for x in task.assignees]
+        return d
 
     @jwt_required
     def put(self, task_id):
-        task = load_task(task_id)
+        task = task_repo.open(task_id)
 
     @jwt_required
     def delete(self, task_id):
-        task = load_task(task_id)
+        task = task_repo.open(task_id)
 
 class TaskComments(Resource):
     @jwt_required
     def get(self, task_id):
-        task = load_task(task_id)
+        task = task_repo.open(task_id)
+        return {'comments': [comment_repo.dump(x) for x in task.comments]}
 
     @jwt_required
     def post(self, task_id):
-        task = load_task(task_id)
+        task = task_repo.open(task_id)
 
 class Comment(Resource):
     @jwt_required
     def get(self, comment_id):
-        comment = load_comment(comment_id)
+        comment = comment_repo.open(comment_id)
+        return comment_repo.dump(comment)
 
     @jwt_required
     def put(self, comment_id):
-        comment = load_comment(comment_id)
+        comment = comment_repo.open(comment_id)
 
     @jwt_required
     def delete(self, comment_id):
-        comment = load_comment(comment_id)
+        comment = comment_repo.open(comment_id)
 
 api.add_resource(Login, '/login')
 api.add_resource(User, '/user')
