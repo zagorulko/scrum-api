@@ -1,3 +1,4 @@
+faker
 flask
 flask-jwt-extended
 flask-migrate

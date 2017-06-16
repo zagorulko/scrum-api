@@ -109,8 +109,8 @@ class Project(Resource):
             'name': project.name,
             'description': project.description,
             'vcs_link': project.vcs_link,
-            'bt_link': project.bt_link,
-            'ci_link': project.ci_link
+            'bts_link': project.bts_link,
+            'cis_link': project.cis_link
         }
 
 class ProjectMembers(Resource):

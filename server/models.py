@@ -24,15 +24,19 @@ class TaskStatus(enum.Enum):
 project_members = db.Table(
     'project_members',
     db.Model.metadata,
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), nullable=False),
-    db.Column('project_id', db.Integer, db.ForeignKey('projects.id'), nullable=False)
+    db.Column('user_id', db.Integer,
+              db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False),
+    db.Column('project_id', db.Integer,
+              db.ForeignKey('projects.id', ondelete='CASCADE'), nullable=False)
 )
 
 task_assigments = db.Table(
     'task_assigments',
     db.Model.metadata,
-    db.Column('task_id', db.Integer, db.ForeignKey('tasks.id'), nullable=False),
-    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), nullable=False)
+    db.Column('task_id', db.Integer,
+              db.ForeignKey('tasks.id', ondelete='CASCADE'), nullable=False),
+    db.Column('user_id', db.Integer,
+              db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
 )
 
 class User(db.Model):
@@ -67,8 +71,8 @@ class Project(db.Model):
     name = db.Column(db.String, nullable=False)
     description = db.Column(db.Text)
     vcs_link = db.Column(db.String)
-    bt_link = db.Column(db.String)
-    ci_link = db.Column(db.String)
+    bts_link = db.Column(db.String)
+    cis_link = db.Column(db.String)
 
     def authorize(self, user_id):
         if not db.session.query(project_members)\
@@ -103,7 +107,7 @@ class Task(db.Model):
     sprint_id = db.Column(db.Integer, db.ForeignKey('sprints.id'))
     sprint = db.relationship('Sprint', back_populates='tasks')
     parent_task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'))
-    parent_task = db.relationship('Task')
+    parent_task = db.relationship('Task', remote_side=[id])
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     author = db.relationship('User')
     comments = db.relationship('Comment', back_populates='task')
@@ -118,7 +122,7 @@ class Task(db.Model):
     user_story = db.Column(db.Text)
     initial_estimate = db.Column(db.Integer)
     vcs_commit = db.Column(db.String)
-    bt_ticket = db.Column(db.String)
+    bts_ticket = db.Column(db.Integer)
     completion_date = db.Column(db.DateTime)
     time_spent = db.Column(db.Integer)
     effort = db.Column(db.Float)
@@ -134,7 +138,8 @@ class Comment(db.Model):
     task = db.relationship('Task', back_populates='comments')
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     author = db.relationship('User')
-    added_at = db.Column(db.DateTime)
+
+    creation_date = db.Column(db.DateTime)
     message = db.Text()
 
     def authorize(self, user_id):
