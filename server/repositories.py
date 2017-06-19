@@ -48,15 +48,15 @@ class User:
     def dump(self, user):
         return {
             'username': user.username,
-            'full_name': user.full_name,
+            'fullName': user.full_name,
             'email': user.email
         }
 
     def load(self, user, d):
         if 'username' in d:
             user.username = d['username']
-        if 'full_name' in d:
-            user.full_name = d['full_name']
+        if 'fullName' in d:
+            user.full_name = d['fullName']
         if 'email' in d:
             user.email = d['email']
 
@@ -81,9 +81,9 @@ class Project:
         d = self.dump_short(project)
         d.update(without_nulls({
             'description': project.description,
-            'vcs_link': project.vcs_link,
-            'bts_link': project.bts_link,
-            'cis_link': project.cis_link
+            'vcsLink': project.vcs_link,
+            'btsLink': project.bts_link,
+            'cisLink': project.cis_link
         }))
         return d
 
@@ -101,16 +101,16 @@ class Sprint:
     def dump(self, sprint):
         return without_nulls({
             'id': sprint.id,
-            'start_date': sprint.start_date.isoformat(),
-            'end_date': sprint.end_date.isoformat(),
+            'startDate': sprint.start_date.isoformat(),
+            'endDate': sprint.end_date.isoformat(),
             'goal': sprint.goal
         })
 
     def load(self, sprint, d):
-        if 'start_date' in d:
-            sprint.start_date = d['start_date']
-        if 'end_date' in d:
-            sprint.end_date = d['end_date']
+        if 'startDate' in d:
+            sprint.start_date = d['startDate']
+        if 'endDate' in d:
+            sprint.end_date = d['endDate']
         if 'goal' in d:
             sprint.goal = d['goal']
 
@@ -130,10 +130,10 @@ class Task:
             'id': task.id,
             'project': task.project.alias,
             'sprint': task.sprint_id,
-            'parent_task': task.parent_task_id,
+            'parentTask': task.parent_task_id,
             'author': task.author.username,
             'title': task.title,
-            'creation_date': task.creation_date.isoformat(),
+            'creationDate': task.creation_date.isoformat(),
             'status': task.status.name,
             'kind': task.kind.name,
             'priority': task.priority
@@ -142,14 +142,14 @@ class Task:
     def dump_full(self, task):
         d = self.dump_short(task)
         d.update(without_nulls({
-            'acceptance_criteria': task.acceptance_criteria,
-            'user_story': task.user_story,
-            'initial_estimate': task.initial_estimate,
-            'vcs_commit': task.vcs_commit,
-            'bts_ticket': task.bts_ticket,
-            'completion_date': (task.completion_date.isoformat()
+            'acceptanceCriteria': task.acceptance_criteria,
+            'userStory': task.user_story,
+            'initialEstimate': task.initial_estimate,
+            'vcsCommit': task.vcs_commit,
+            'btsTicket': task.bts_ticket,
+            'completionDate': (task.completion_date.isoformat()
                                         if task.completion_date else None),
-            'time_spent': task.time_spent,
+            'timeSpent': task.time_spent,
             'effort': task.effort
         }))
         return d
@@ -160,11 +160,11 @@ class Task:
                 task.sprint = None
             else:
                 task.sprint = models.Sprint.get(d['sprint'])
-        if 'parent_task' in d:
-            if d['parent_task'] == None:
+        if 'parentTask' in d:
+            if d['parentTask'] == None:
                 task.parent_task = None
             else:
-                task.parent_task = models.Task.get(d['parent_task'])
+                task.parent_task = models.Task.get(d['parentTask'])
         if 'title' in d:
             task.title = d['title']
         if 'status' in d:
@@ -173,20 +173,20 @@ class Task:
             task.status = models.TaskKind(d['kind'])
         if 'priority' in d:
             taks.priority = d['priority']
-        if 'acceptance_criteria' in d:
-            task.acceptance_criteria = d['acceptance_criteria']
-        if 'user_story' in d:
-            task.user_story = d['user_story']
-        if 'initial_estimate' in d:
-            task.initial_estimate = d['initial_estimate']
-        if 'vcs_commit' in d:
-            task.vcs_commit = d['vcs_commit']
-        if 'bts_ticket' in d:
-            task.bts_ticket = d['bts_ticket']
-        if 'completion_date' in d:
-            task.completion_date = d['completion_date']
-        if 'time_spent' in d:
-            task.time_spent = d['time_spent']
+        if 'acceptanceCriteria' in d:
+            task.acceptance_criteria = d['acceptanceCriteria']
+        if 'userStory' in d:
+            task.user_story = d['userStory']
+        if 'initialEstimate' in d:
+            task.initial_estimate = d['initialEstimate']
+        if 'vcsCommit' in d:
+            task.vcs_commit = d['vcsCommit']
+        if 'btsTicket' in d:
+            task.bts_ticket = d['btsTicket']
+        if 'completionDate' in d:
+            task.completion_date = d['completionDate']
+        if 'timeSpent' in d:
+            task.time_spent = d['timeSpent']
 
 class Comment:
     def open(self, comment_id):
@@ -204,7 +204,7 @@ class Comment:
             'id': comment.id,
             'task': comment.task.id,
             'author': comment.author.username,
-            'creation_date': comment.creation_date.isoformat(),
+            'creationDate': comment.creation_date.isoformat(),
             'message': comment.message
         })
 
