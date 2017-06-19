@@ -71,21 +71,15 @@ class Project:
     def authorize(self, project):
         authorize_project(project)
 
-    def dump_short(self, project):
-        return {
+    def dump(self, project):
+        return without_nulls({
             'alias': project.alias,
-            'name': project.name
-        }
-
-    def dump_full(self, project):
-        d = self.dump_short(project)
-        d.update(without_nulls({
+            'name': project.name,
             'description': project.description,
             'vcsLink': project.vcs_link,
             'btsLink': project.bts_link,
             'cisLink': project.cis_link
-        }))
-        return d
+        })
 
 class Sprint:
     def open(self, sprint_id):

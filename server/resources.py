@@ -54,13 +54,13 @@ class UserProjects(Resource):
     @jwt_required
     def get(self):
         user = models.User.query.get(get_jwt_identity())
-        return {'projects': [project_repo.dump_short(x) for x in user.projects]}
+        return {'projects': [project_repo.dump(x) for x in user.projects]}
 
 class Project(Resource):
     @jwt_required
     def get(self, project_alias):
         project = project_repo.open(project_alias)
-        return project_repo.dump_full(project)
+        return project_repo.dump(project)
 
 class ProjectMembers(Resource):
     @jwt_required
