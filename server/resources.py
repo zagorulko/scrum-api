@@ -23,9 +23,9 @@ class Login(Resource):
         args = parser.parse_args()
         user = models.User.query.filter_by(username=args['username']).first()
         if not user:
-            return {'msg': 'No such user'}, 401
+            return {'message': 'No such user'}, 401
         if not user.verify_password(args['password']):
-            return {'msg': 'Invalid password'}, 401
+            return {'message': 'Invalid password'}, 401
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}
 
