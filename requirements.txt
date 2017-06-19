@@ -1,5 +1,6 @@
 faker
 flask
+flask-cors
 flask-jwt-extended
 flask-migrate
 flask-restful
