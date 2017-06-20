@@ -82,8 +82,18 @@ class ProjectSprints(Resource):
 class ProjectTasks(Resource):
     @jwt_required
     def get(self, project_alias):
+        now = datetime.now().date()
+        profile = models.User.query.get(get_jwt_identity())
         project = project_repo.open(project_alias)
-        return {'tasks': [task_repo.dump_short(x) for x in project.tasks]}
+        tasks_out = []
+        for task in project.tasks:
+            t = task_repo.dump_short(task)
+            t['assignedToMe'] = profile in task.assignees
+            t['onCurrentSprint'] = (task.sprint != None
+                                        and task.sprint.start_date < now
+                                        and task.sprint.end_date > now)
+            tasks_out.append(t)
+        return {'tasks': tasks_out}
 
     @jwt_required
     def post(self, project_alias):
