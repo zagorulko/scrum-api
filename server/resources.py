@@ -29,32 +29,33 @@ class Login(Resource):
         access_token = create_access_token(identity=user.id)
         return {'access_token': access_token}
 
-class User(Resource):
+class Profile(Resource):
     @jwt_required
     def get(self):
-        user = models.User.query.get(get_jwt_identity())
-        return user_repo.dump(user)
+        profile = models.User.query.get(get_jwt_identity())
+        return user_repo.dump(profile)
 
     @jwt_required
     def post(self):
         parser = reqparse.RequestParser()
-        parser.add_argument('full_name', type=str)
+        parser.add_argument('username', type=str)
+        parser.add_argument('fullName', type=str)
         parser.add_argument('email', type=str)
         args = parser.parse_args()
 
-        user = models.User.query.get(get_jwt_identity())
-        user_repo.load(user, args)
+        profile = models.User.query.get(get_jwt_identity())
+        user_repo.load(profile, args)
 
-        models.db.session.add(user)
+        models.db.session.add(profile)
         models.db.session.commit()
 
         return {'ok': True}
 
-class UserProjects(Resource):
+class Projects(Resource):
     @jwt_required
     def get(self):
-        user = models.User.query.get(get_jwt_identity())
-        return {'projects': [project_repo.dump(x) for x in user.projects]}
+        profile = models.User.query.get(get_jwt_identity())
+        return {'projects': [project_repo.dump(x) for x in profile.projects]}
 
 class Project(Resource):
     @jwt_required
@@ -170,8 +171,8 @@ class Comment(Resource):
         comment = comment_repo.open(comment_id)
 
 api.add_resource(Login, '/login')
-api.add_resource(User, '/user')
-api.add_resource(UserProjects, '/user/projects')
+api.add_resource(Profile, '/profile')
+api.add_resource(Projects, '/projects')
 api.add_resource(Project, '/projects/<string:project_alias>')
 api.add_resource(ProjectMembers, '/projects/<string:project_alias>/members')
 api.add_resource(ProjectSprints, '/projects/<string:project_alias>/sprints')
