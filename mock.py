@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import faker
+from datetime import datetime, timedelta
 
 from server import app, models
 
@@ -11,7 +12,7 @@ class Config:
     USER_PASSWORD = '12345'
     PROJECT_COUNT = 10
     PROJECT_MEMBERS_MAX = 30
-    SPRINT_COUNT = 100
+    SPRINT_COUNT = 50
     TASK_COUNT = 500
     TASK_ASSIGNEES_MAX = 3
     COMMENT_COUNT = 1000
@@ -82,8 +83,11 @@ class Mocker:
 
         for i in range(Config.SPRINT_COUNT):
             sprint = models.Sprint()
-            sprint.start_date = self.fake.date_time_between('-2y','1m'),
-            sprint.end_date = self.fake.date_time_between('1m', '2m')
+            sprint.start_date = self.fake.date_time_between('-1y')
+            sprint.end_date = self.fake.date_time_between(
+                start_date=sprint.start_date + timedelta(days=7),
+                end_date=sprint.start_date + timedelta(days=42)
+            )
             sprint.goal = self.fake.sentence()
 
             sprint.project = models.Project.query\
@@ -100,39 +104,63 @@ class Mocker:
         task_ids = []
         next_bts_ticket = 1
         for i in range(Config.TASK_COUNT):
+            project = models.Project.query\
+                .order_by(models.db.func.random())\
+                .first()
+            sprint = None
+            if project.sprints and self.fake.boolean(80):
+                sprint = self.fake.random.choice(project.sprints)
+
             task = models.Task()
+
             task.title = self.fake.sentence()
-            task.creation_date = self.fake.date_time_between('-3y', '-1m')
-            task.status = self.fake.random.choice([models.TaskStatus.BACKLOG,
-                                                   models.TaskStatus.IN_PROCESS])
+
+            if sprint:
+                task.creation_date = self.fake.date_time_between(
+                    start_date=sprint.start_date - timedelta(days=365),
+                    end_date=sprint.start_date - timedelta(days=1)
+                )
+            else:
+                task.creation_date = self.fake.date_time_between('-3y')
+
+            task.status = self.fake.random.choice([
+                models.TaskStatus.BACKLOG,
+                models.TaskStatus.IN_PROCESS
+            ])
+
             task.kind = self.fake.random.choice(list(models.TaskKind))
+
             task.priority = self.fake.random.randrange(-2, 2)
+
             if self.fake.boolean(20):
                 task.acceptance_criteria = self.fake.paragraph()
+
             if self.fake.boolean(40):
                 task.user_story = self.fake.paragraph()
+
             if self.fake.boolean(30):
                 task.initial_estimate = self.fake.random.randrange(1, 30)
+
             if self.fake.boolean(30):
                 task.vcs_commit = self.fake.sha1()
+
             if task.kind == models.TaskKind.BUG and self.fake.boolean(60):
                 task.bts_ticket = next_bts_ticket
                 next_bts_ticket += 1
-            if self.fake.boolean(50):
+
+            if sprint and self.fake.boolean(80):
                 task.status = models.TaskStatus.DONE
                 task.completion_date = self.fake.date_time_between(
-                                                            task.creation_date)
+                    start_date=sprint.start_date + timedelta(days=1),
+                    end_date=sprint.end_date
+                )
                 if self.fake.boolean(50):
                     task.time_spent = self.fake.random.randrange(1, 100)
                 if self.fake.boolean(50):
                     task.effort = '{0:.2f}'.format(self.fake.random.random()*10)
 
-            task.project = models.Project.query\
-                .order_by(models.db.func.random())\
-                .first()
-
-            if task.project.sprints and self.fake.boolean(80):
-                task.sprint = self.fake.random.choice(task.project.sprints)
+            task.project = project
+            task.sprint = sprint
 
             if task_ids and self.fake.boolean(20):
                 parent_task_id = self.fake.random.choice(task_ids)
