@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask_jwt_extended import (JWTManager, jwt_required,
                                 create_access_token, get_jwt_identity)
@@ -82,16 +82,12 @@ class ProjectSprints(Resource):
 class ProjectTasks(Resource):
     @jwt_required
     def get(self, project_alias):
-        now = datetime.now().date()
         profile = models.User.query.get(get_jwt_identity())
         project = project_repo.open(project_alias)
         tasks_out = []
         for task in project.tasks:
             t = task_repo.dump_short(task)
             t['assignedToMe'] = profile in task.assignees
-            t['onCurrentSprint'] = (task.sprint != None
-                                        and task.sprint.start_date < now
-                                        and task.sprint.end_date > now)
             tasks_out.append(t)
         return {'tasks': tasks_out}
 
@@ -139,6 +135,30 @@ class SprintTasks(Resource):
     def get(self, sprint_id):
         sprint = sprint_repo.open(sprint_id)
         return {'tasks': [task_repo.dump_short(x) for x in sprint.tasks]}
+
+class SprintBurndown(Resource):
+    @jwt_required
+    def get(self, sprint_id):
+        sprint = sprint_repo.open(sprint_id)
+        task_count = models.Task.query\
+            .filter_by(sprint_id=sprint.id)\
+            .count()
+        day_count = (sprint.end_date - sprint.start_date).days
+        burndown = []
+        for day_no in range(day_count):
+            d = sprint.start_date + timedelta(days=day_no)
+            completed_count = models.Task.query\
+                .filter(models.Task.sprint_id == sprint.id,
+                        models.Task.completion_date <= d)\
+                .count()
+            actually_left = task_count - completed_count
+            should_be_left = int(task_count - (task_count * (day_no / day_count)))
+            burndown.append({
+                'date': d.isoformat(),
+                'actually_left': actually_left,
+                'should_be_left': should_be_left
+            })
+        return {'burndown': burndown}
 
 class Task(Resource):
     @jwt_required
@@ -189,6 +209,7 @@ api.add_resource(ProjectSprints, '/projects/<string:project_alias>/sprints')
 api.add_resource(ProjectTasks, '/projects/<string:project_alias>/tasks')
 api.add_resource(Sprint, '/sprints/<int:sprint_id>')
 api.add_resource(SprintTasks, '/sprints/<int:sprint_id>/tasks')
+api.add_resource(SprintBurndown, '/sprints/<int:sprint_id>/burndown')
 api.add_resource(Task, '/tasks/<int:task_id>')
 api.add_resource(TaskComments, '/tasks/<int:task_id>/comments')
 api.add_resource(Comment, '/comments/<int:comment_id>')

@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import jsonify
 from flask_jwt_extended import get_jwt_identity
 
@@ -72,13 +74,20 @@ class Project:
         authorize_project(project)
 
     def dump(self, project):
+        today = datetime.now().date()
+        current_sprint = models.Sprint.query\
+            .filter(models.Sprint.project_id == project.id,
+                    models.Sprint.start_date <= today,
+                    models.Sprint.end_date >= today)\
+            .first()
         return without_nulls({
             'alias': project.alias,
             'name': project.name,
             'description': project.description,
             'vcsLink': project.vcs_link,
             'btsLink': project.bts_link,
-            'cisLink': project.cis_link
+            'cisLink': project.cis_link,
+            'currentSprint': (current_sprint.id if current_sprint else None)
         })
 
 class Sprint:
@@ -95,6 +104,7 @@ class Sprint:
     def dump(self, sprint):
         return without_nulls({
             'id': sprint.id,
+            'number': sprint.project.sprints.index(sprint) + 1,
             'startDate': sprint.start_date.isoformat(),
             'endDate': sprint.end_date.isoformat(),
             'goal': sprint.goal

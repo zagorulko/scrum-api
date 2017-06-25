@@ -64,7 +64,8 @@ class Project(db.Model):
 
     members = db.relationship('User', secondary=project_members,
                               back_populates='projects')
-    sprints = db.relationship('Sprint', back_populates='project')
+    sprints = db.relationship('Sprint', back_populates='project',
+                              order_by='Sprint.start_date')
     tasks = db.relationship('Task', back_populates='project')
 
     alias = db.Column(db.String, index=True, unique=True, nullable=False)
