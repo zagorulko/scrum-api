@@ -1,60 +1,21 @@
 from datetime import datetime
 
-from flask import jsonify
-from flask_jwt_extended import get_jwt_identity
-
-from server import app, models
-
-class NotFound(Exception):
-    pass
-
-class AccessDenied(Exception):
-    pass
-
-@app.errorhandler(NotFound)
-def handle_not_found(error):
-    response = jsonify({'message': 'Not found'})
-    response.status_code = 404
-    return response
-
-@app.errorhandler(AccessDenied)
-def handle_access_denied(error):
-    response = jsonify({'message': 'Access denied'})
-    response.status_code = 403
-    return response
+from server import models
 
 def without_nulls(d):
     return {k: v for k, v in d.items() if v != None}
 
-def authorize_user(user):
-    pass
-
-def authorize_project(project):
-    if not models.db.session.query(models.project_members)\
-             .filter_by(project_id=project.id,
-                        user_id=get_jwt_identity())\
-             .first():
-        raise AccessDenied()
-
 class User:
-    def open(self, username):
-        user = models.User.query.filter_by(username=username).first()
-        if not user:
-            raise NotFound()
-        self.authorize(user)
-        return user
-
-    def authorize(self, user):
-        authorize_user(user)
-
-    def dump(self, user):
+    @classmethod
+    def dump(cls, user):
         return {
             'username': user.username,
             'fullName': user.full_name,
             'email': user.email
         }
 
-    def load(self, user, d):
+    @classmethod
+    def load(cls, user, d):
         if 'username' in d:
             user.username = d['username']
         if 'fullName' in d:
@@ -63,17 +24,8 @@ class User:
             user.email = d['email']
 
 class Project:
-    def open(self, project_alias):
-        project = models.Project.query.filter_by(alias=project_alias).first()
-        if not project:
-            raise NotFound()
-        self.authorize(project)
-        return project
-
-    def authorize(self, project):
-        authorize_project(project)
-
-    def dump(self, project):
+    @classmethod
+    def dump(cls, project):
         today = datetime.now().date()
         current_sprint = models.Sprint.query\
             .filter(models.Sprint.project_id == project.id,
@@ -91,17 +43,8 @@ class Project:
         })
 
 class Sprint:
-    def open(self, sprint_id):
-        sprint = models.Sprint.query.get(sprint_id)
-        if not sprint:
-            raise NotFound()
-        self.authorize(sprint)
-        return sprint
-
-    def authorize(self, sprint):
-        authorize_project(sprint.project)
-
-    def dump(self, sprint):
+    @classmethod
+    def dump(cls, sprint):
         return without_nulls({
             'id': sprint.id,
             'number': sprint.project.sprints.index(sprint) + 1,
@@ -110,7 +53,8 @@ class Sprint:
             'goal': sprint.goal
         })
 
-    def load(self, sprint, d):
+    @classmethod
+    def load(cls, sprint, d):
         if 'startDate' in d:
             sprint.start_date = d['startDate']
         if 'endDate' in d:
@@ -119,17 +63,8 @@ class Sprint:
             sprint.goal = d['goal']
 
 class Task:
-    def open(self, task_id):
-        task = models.Task.query.get(task_id)
-        if not task:
-            raise NotFound()
-        self.authorize(task)
-        return task
-
-    def authorize(self, task):
-        authorize_project(task.project)
-
-    def dump_short(self, task):
+    @classmethod
+    def dump_short(cls, task):
         return without_nulls({
             'id': task.id,
             'project': task.project.alias,
@@ -143,8 +78,9 @@ class Task:
             'priority': task.priority
         })
 
-    def dump_full(self, task):
-        d = self.dump_short(task)
+    @classmethod
+    def dump_full(cls, task):
+        d = cls.dump_short(task)
         d.update(without_nulls({
             'acceptanceCriteria': task.acceptance_criteria,
             'userStory': task.user_story,
@@ -158,7 +94,8 @@ class Task:
         }))
         return d
 
-    def load(self, task, d):
+    @classmethod
+    def load(cls, task, d):
         if 'sprint' in d:
             if d['sprint'] == None:
                 task.sprint = None
@@ -193,17 +130,8 @@ class Task:
             task.time_spent = d['timeSpent']
 
 class Comment:
-    def open(self, comment_id):
-        comment = models.Task.query.get(comment_id)
-        if not comment:
-            raise NotFound()
-        self.authorize(comment)
-        return comment
-
-    def authorize(self, comment):
-        authorize_project(comment.task.project)
-
-    def dump(self, comment):
+    @classmethod
+    def dump(cls, comment):
         return without_nulls({
             'id': comment.id,
             'task': comment.task.id,
@@ -212,6 +140,7 @@ class Comment:
             'message': comment.message
         })
 
-    def load(self, comment, d):
+    @classmethod
+    def load(cls, comment, d):
         if 'message' in d:
             comment.message = d['message']

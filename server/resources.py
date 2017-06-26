@@ -1,19 +1,75 @@
 from datetime import datetime, timedelta
 
+from flask import jsonify
 from flask_jwt_extended import (JWTManager, jwt_required,
                                 create_access_token, get_jwt_identity)
 from flask_restful import Api, Resource, reqparse
 
-from server import app, models, repositories
+from server import app, models, schemas
 
 api = Api(app, prefix='/v1')
 jwt = JWTManager(app)
 
-user_repo = repositories.User()
-project_repo = repositories.Project()
-sprint_repo = repositories.Sprint()
-task_repo = repositories.Task()
-comment_repo = repositories.Comment()
+class NotFound(Exception):
+    pass
+
+class AccessDenied(Exception):
+    pass
+
+@app.errorhandler(NotFound)
+def handle_not_found(error):
+    response = jsonify({'message': 'Not found'})
+    response.status_code = 404
+    return response
+
+@app.errorhandler(AccessDenied)
+def handle_access_denied(error):
+    response = jsonify({'message': 'Access denied'})
+    response.status_code = 403
+    return response
+
+def authorize_project(project):
+    if not models.db.session.query(models.project_members)\
+             .filter_by(project_id=project.id,
+                        user_id=get_jwt_identity())\
+             .first():
+        raise AccessDenied()
+
+def project_guard(fn):
+    def wrapper(self, project_alias):
+        project = models.Project.query.filter_by(alias=project_alias).first()
+        if not project:
+            raise NotFound()
+        authorize_project(project)
+        return fn(self, project)
+    return wrapper
+
+def sprint_guard(fn):
+    def wrapper(self, sprint_id):
+        sprint = models.Sprint.query.get(sprint_id)
+        if not sprint:
+            raise NotFound()
+        authorize_project(sprint.project)
+        return fn(self, sprint)
+    return wrapper
+
+def task_guard(fn):
+    def wrapper(task_id):
+        task = models.Task.query.get(task_id)
+        if not task:
+            raise NotFound()
+        authorize_project(task.project)
+        return fn(self, task)
+    return wrapper
+
+def comment_guard(fn):
+    def wrapper(comment_id):
+        comment = models.Task.query.get(comment_id)
+        if not comment:
+            raise NotFound()
+        authorize_project(comment.task.project)
+        return fn(self, comment)
+    return wrapper
 
 class Login(Resource):
     def post(self):
@@ -33,7 +89,7 @@ class Profile(Resource):
     @jwt_required
     def get(self):
         profile = models.User.query.get(get_jwt_identity())
-        return user_repo.dump(profile)
+        return schemas.User.dump(profile)
 
     @jwt_required
     def post(self):
@@ -44,7 +100,7 @@ class Profile(Resource):
         args = parser.parse_args()
 
         profile = models.User.query.get(get_jwt_identity())
-        user_repo.load(profile, args)
+        schemas.User.load(profile, args)
 
         models.db.session.add(profile)
         models.db.session.commit()
@@ -55,46 +111,46 @@ class Projects(Resource):
     @jwt_required
     def get(self):
         profile = models.User.query.get(get_jwt_identity())
-        return {'projects': [project_repo.dump(x) for x in profile.projects]}
+        return {'projects': [schemas.Project.dump(x) for x in profile.projects]}
 
 class Project(Resource):
     @jwt_required
-    def get(self, project_alias):
-        project = project_repo.open(project_alias)
-        return project_repo.dump(project)
+    @project_guard
+    def get(self, project):
+        return schemas.Project.dump(project)
 
 class ProjectMembers(Resource):
     @jwt_required
-    def get(self, project_alias):
-        project = project_repo.open(project_alias)
-        return {'members': [user_repo.dump(x) for x in project.members]}
+    @project_guard
+    def get(self, project):
+        return {'members': [schemas.User.dump(x) for x in project.members]}
 
 class ProjectSprints(Resource):
     @jwt_required
-    def get(self, project_alias):
-        project = project_repo.open(project_alias)
-        return {'sprints': [sprint_repo.dump(x) for x in project.sprints]}
+    @project_guard
+    def get(self, project):
+        return {'sprints': [schemas.Sprint.dump(x) for x in project.sprints]}
 
     @jwt_required
-    def post(self, project_alias):
-        project = project_repo.open(project_alias)
+    @project_guard
+    def post(self):
+        pass
 
 class ProjectTasks(Resource):
     @jwt_required
-    def get(self, project_alias):
+    @project_guard
+    def get(self, project):
         profile = models.User.query.get(get_jwt_identity())
-        project = project_repo.open(project_alias)
         tasks_out = []
         for task in project.tasks:
-            t = task_repo.dump_short(task)
+            t = schemas.Task.dump_short(task)
             t['assignedToMe'] = profile in task.assignees
             tasks_out.append(t)
         return {'tasks': tasks_out}
 
     @jwt_required
-    def post(self, project_alias):
-        project = project_repo.open(project_alias)
-
+    @project_guard
+    def post(self, project):
         parser = reqparse.RequestParser()
         parser.add_argument('sprint', type=int)
         parser.add_argument('parentTask', type=int)
@@ -109,37 +165,39 @@ class ProjectTasks(Resource):
 
         task = models.Task()
         task.project = project
-        task_repo.load(task, args)
+        schemas.Task.load(task, args)
         for assignee_username in args.assignees:
-            task.assignees.append(user_repo.open(assignee_username))
+            task.assignees.append(schemas.User.open(assignee_username))
 
         models.db.session.add(task)
         models.db.session.commit()
 
 class Sprint(Resource):
     @jwt_required
+    @sprint_guard
     def get(self, sprint_id):
-        sprint = sprint_repo.open(sprint_id)
-        return sprint_repo.dump(sprint)
+        return schemas.Sprint.dump(sprint)
 
     @jwt_required
-    def put(self, sprint_id):
-        sprint = sprint_repo.open(sprint_id)
+    @sprint_guard
+    def put(self, sprint):
+        pass
 
     @jwt_required
-    def delete(self, sprint_id):
-        sprint = sprint_repo.open(sprint_id)
+    @sprint_guard
+    def delete(self, sprint):
+        pass
 
 class SprintTasks(Resource):
     @jwt_required
-    def get(self, sprint_id):
-        sprint = sprint_repo.open(sprint_id)
-        return {'tasks': [task_repo.dump_short(x) for x in sprint.tasks]}
+    @sprint_guard
+    def get(self, sprint):
+        return {'tasks': [schemas.Task.dump_short(x) for x in sprint.tasks]}
 
 class SprintBurndown(Resource):
     @jwt_required
-    def get(self, sprint_id):
-        sprint = sprint_repo.open(sprint_id)
+    @sprint_guard
+    def get(self, sprint):
         task_count = models.Task.query\
             .filter_by(sprint_id=sprint.id)\
             .count()
@@ -162,43 +220,33 @@ class SprintBurndown(Resource):
 
 class Task(Resource):
     @jwt_required
-    def get(self, task_id):
-        task = task_repo.open(task_id)
-        d = task_repo.dump_full(task)
-        d['assignees'] = [user_repo.dump(x) for x in task.assignees]
+    @task_guard
+    def get(self, task):
+        d = schemas.Task.dump_full(task)
+        d['assignees'] = [schemas.User.dump(x) for x in task.assignees]
         return d
 
     @jwt_required
-    def put(self, task_id):
-        task = task_repo.open(task_id)
+    @task_guard
+    def put(self, task):
+        pass
 
     @jwt_required
-    def delete(self, task_id):
-        task = task_repo.open(task_id)
+    @task_guard
+    def delete(self, task):
+        pass
 
 class TaskComments(Resource):
     @jwt_required
-    def get(self, task_id):
-        task = task_repo.open(task_id)
-        return {'comments': [comment_repo.dump(x) for x in task.comments]}
-
-    @jwt_required
-    def post(self, task_id):
-        task = task_repo.open(task_id)
+    @task_guard
+    def get(self, task):
+        return {'comments': [schemas.Comment.dump(x) for x in task.comments]}
 
 class Comment(Resource):
     @jwt_required
-    def get(self, comment_id):
-        comment = comment_repo.open(comment_id)
-        return comment_repo.dump(comment)
-
-    @jwt_required
-    def put(self, comment_id):
-        comment = comment_repo.open(comment_id)
-
-    @jwt_required
-    def delete(self, comment_id):
-        comment = comment_repo.open(comment_id)
+    @comment_guard
+    def get(self, comment):
+        return schemas.Comment.dump(comment)
 
 api.add_resource(Login, '/login')
 api.add_resource(Profile, '/profile')
