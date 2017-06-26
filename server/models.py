@@ -99,7 +99,8 @@ class Task(db.Model):
     parent_task = db.relationship('Task', remote_side=[id])
     author_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     author = db.relationship('User')
-    comments = db.relationship('Comment', back_populates='task')
+    comments = db.relationship('Comment', back_populates='task',
+                               order_by='Comment.creation_date')
     assignees = db.relationship('User', secondary=task_assigments)
 
     title = db.Column(db.String, nullable=False)

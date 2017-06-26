@@ -28,6 +28,9 @@ def handle_access_denied(error):
     response.status_code = 403
     return response
 
+def get_profile():
+    return models.User.query.get(get_jwt_identity())
+
 def authorize_project(project):
     if not models.db.session.query(models.project_members)\
              .filter_by(project_id=project.id,
@@ -54,7 +57,7 @@ def sprint_guard(fn):
     return wrapper
 
 def task_guard(fn):
-    def wrapper(task_id):
+    def wrapper(self, task_id):
         task = models.Task.query.get(task_id)
         if not task:
             raise NotFound()
@@ -63,7 +66,7 @@ def task_guard(fn):
     return wrapper
 
 def comment_guard(fn):
-    def wrapper(comment_id):
+    def wrapper(self, comment_id):
         comment = models.Task.query.get(comment_id)
         if not comment:
             raise NotFound()
@@ -88,8 +91,7 @@ class Login(Resource):
 class Profile(Resource):
     @jwt_required
     def get(self):
-        profile = models.User.query.get(get_jwt_identity())
-        return schemas.User.dump(profile)
+        return schemas.User.dump(get_profile())
 
     @jwt_required
     def post(self):
@@ -99,7 +101,7 @@ class Profile(Resource):
         parser.add_argument('email', type=str)
         args = parser.parse_args()
 
-        profile = models.User.query.get(get_jwt_identity())
+        profile = get_profile()
         schemas.User.load(profile, args)
 
         models.db.session.add(profile)
@@ -110,7 +112,7 @@ class Profile(Resource):
 class Projects(Resource):
     @jwt_required
     def get(self):
-        profile = models.User.query.get(get_jwt_identity())
+        profile = get_profile()
         return {'projects': [schemas.Project.dump(x) for x in profile.projects]}
 
 class Project(Resource):
@@ -140,7 +142,7 @@ class ProjectTasks(Resource):
     @jwt_required
     @project_guard
     def get(self, project):
-        profile = models.User.query.get(get_jwt_identity())
+        profile = get_profile()
         tasks_out = []
         for task in project.tasks:
             t = schemas.Task.dump_short(task)
@@ -175,7 +177,7 @@ class ProjectTasks(Resource):
 class Sprint(Resource):
     @jwt_required
     @sprint_guard
-    def get(self, sprint_id):
+    def get(self, sprint):
         return schemas.Sprint.dump(sprint)
 
     @jwt_required
@@ -241,6 +243,24 @@ class TaskComments(Resource):
     @task_guard
     def get(self, task):
         return {'comments': [schemas.Comment.dump(x) for x in task.comments]}
+
+    @jwt_required
+    @task_guard
+    def post(self, task):
+        parser = reqparse.RequestParser()
+        parser.add_argument('message', type=str, required=True)
+        args = parser.parse_args()
+
+        comment = models.Comment()
+        comment.task = task
+        comment.author = get_profile()
+        comment.creation_date = datetime.now()
+        comment.message = args['message']
+
+        models.db.session.add(comment)
+        models.db.session.commit()
+
+        return {'id': comment.id}
 
 class Comment(Resource):
     @jwt_required
