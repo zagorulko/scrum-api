@@ -108,12 +108,12 @@ class Task:
                 task.parent_task = models.Task.get(d['parentTask'])
         if 'title' in d:
             task.title = d['title']
-        if 'status' in d:
-            task.status = models.TaskStatus(d['status'])
-        if 'kind' in d:
-            task.status = models.TaskKind(d['kind'])
+        # if 'status' in d:
+            # task.status = models.TaskStatus(d['status'])
+        # if 'kind' in d:
+            # task.status = models.TaskKind(d['kind'])
         if 'priority' in d:
-            taks.priority = d['priority']
+            task.priority = d['priority']
         if 'acceptanceCriteria' in d:
             task.acceptance_criteria = d['acceptanceCriteria']
         if 'userStory' in d:

@@ -232,7 +232,29 @@ class Task(Resource):
     @jwt_required
     @task_guard
     def put(self, task):
-        pass
+        parser = reqparse.RequestParser()
+        # parser.add_argument('sprint', type=int)
+        # parser.add_argument('parentTask', type=int)
+        parser.add_argument('title', type=str)
+        parser.add_argument('status', type=str)
+        parser.add_argument('kind', type=str)
+        parser.add_argument('priority', type=int)
+        parser.add_argument('initialEstimate', type=int)
+        parser.add_argument('timeSpent', type=int)
+        parser.add_argument('effort', type=float)
+        parser.add_argument('acceptanceCriteria', type=str)
+        parser.add_argument('userStory', type=str)
+        # parser.add_argument('assignees', type=str, nargs='*')
+        args = parser.parse_args()
+
+        if (task.status != models.TaskStatus.DONE
+                and args.get('status') == 'DONE'):
+            tasks.completion_date = datetime.now()
+
+        schemas.Task.load(task, args)
+
+        models.db.session.add(task)
+        models.db.session.commit()
 
     @jwt_required
     @task_guard
