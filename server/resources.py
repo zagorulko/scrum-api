@@ -188,7 +188,8 @@ class Sprint(Resource):
     @jwt_required
     @sprint_guard
     def delete(self, sprint):
-        pass
+        models.db.session.delete(sprint)
+        models.db.session.commit()
 
 class SprintTasks(Resource):
     @jwt_required
@@ -236,7 +237,8 @@ class Task(Resource):
     @jwt_required
     @task_guard
     def delete(self, task):
-        pass
+        models.db.session.delete(task)
+        models.db.session.commit()
 
 class TaskComments(Resource):
     @jwt_required
